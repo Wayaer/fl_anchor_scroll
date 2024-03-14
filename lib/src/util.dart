@@ -1,7 +1,7 @@
 part of '../fl_anchor_scroll.dart';
 
 /// used to invoke async functions in order
-Future<T> co<T>(key, FutureOr<T> Function() action) async {
+Future<T> _co<T>(key, FutureOr<T> Function() action) async {
   for (;;) {
     final c = _locks[key];
     if (c == null) break;
@@ -42,7 +42,7 @@ Future<T> co<T>(key, FutureOr<T> Function() action) async {
 final _locks = HashMap<dynamic, Completer>();
 
 /// skip the TickerCanceled exception
-Future catchAnimationCancel(TickerFuture future) async {
+Future _catchAnimationCancel(TickerFuture future) async {
   return future.orCancel.catchError((_) async {
     return null;
   }, test: (ex) => ex is TickerCanceled);

@@ -41,7 +41,7 @@ abstract class FlAnchorScrollController implements ScrollController {
   bool get hasParentController;
 
   /// scroll to the giving index
-  Future scrollToIndex(int index,
+  Future animateToIndex(int index,
       {Duration duration = _kScrollAnimationDuration,
       AnchorScrollPosition? preferPosition});
 
@@ -67,7 +67,7 @@ class AnchorScrollController extends ScrollController
       Axis? axis,
       this.suggestedRowHeight,
       this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-      FlAnchorScrollController? copyTagsFrom,
+      AnchorScrollController? copyTagsFrom,
       super.debugLabel})
       : beginGetter = (axis == Axis.horizontal ? (r) => r.left : (r) => r.top),
         endGetter =
@@ -105,7 +105,7 @@ class PageAnchorScrollController extends PageController
       super.viewportFraction,
       this.suggestedRowHeight,
       this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-      FlAnchorScrollController? copyTagsFrom,
+      PageAnchorScrollController? copyTagsFrom,
       String? debugLabel})
       : beginGetter = ((Rect rect) => rect.left),
         endGetter = ((Rect rect) => rect.right) {
@@ -183,10 +183,10 @@ mixin AnchorScrollControllerMixin on ScrollController
 
   static const maxBound = 30; // 0.5 second if 60fps
   @override
-  Future scrollToIndex(int index,
+  Future animateToIndex(int index,
       {Duration duration = _kScrollAnimationDuration,
       AnchorScrollPosition? preferPosition}) async {
-    return co(
+    return _co(
         this,
         () => _scrollToIndex(index,
             duration: duration, preferPosition: preferPosition));
@@ -531,13 +531,12 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
   @override
   Widget build(BuildContext context) {
     final animation = _controller ?? kAlwaysDismissedAnimation;
-    return widget.builder?.call(context, animation) ??
-        _HighlightTransition(
-            context: context,
-            highlight: animation,
-            background: widget.color,
-            highlightColor: widget.highlightColor,
-            child: widget.child!);
+    return _HighlightTransition(
+        context: context,
+        highlight: animation,
+        background: widget.color,
+        highlightColor: widget.highlightColor,
+        child: widget.child!);
   }
 
   DateTime? _startKey;
@@ -567,7 +566,7 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
     const animationShow = 1.0;
     setState(() {});
     if (animated) {
-      await catchAnimationCancel(_controller!
+      await _catchAnimationCancel(_controller!
           .animateTo(animationShow, duration: _kScrollAnimationDuration));
     } else {
       _controller!.value = animationShow;
@@ -579,7 +578,7 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
         setState(() {});
         const animationHide = 0.0;
         if (animated) {
-          await catchAnimationCancel(_controller!
+          await _catchAnimationCancel(_controller!
               .animateTo(animationHide, duration: _kScrollAnimationDuration));
         } else {
           _controller!.value = animationHide;

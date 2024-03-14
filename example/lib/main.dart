@@ -14,7 +14,7 @@ class _App extends StatefulWidget {
 }
 
 class _AppState extends State<_App> {
-  List<Color> list = Colors.primaries;
+  List<int> list = List.generate(40000, (index) => index);
   List<bool> states = [];
   late AnchorScrollController anchorScrollController;
 
@@ -22,7 +22,8 @@ class _AppState extends State<_App> {
   void initState() {
     super.initState();
     states = list.map((item) => false).toList();
-    anchorScrollController = AnchorScrollController();
+    anchorScrollController = AnchorScrollController(
+        suggestedRowHeight: 100, keepScrollOffset: false);
     anchorScrollController.addListener(() {
       Future.delayed(const Duration(milliseconds: 200), () {
         logStates();
@@ -34,6 +35,13 @@ class _AppState extends State<_App> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(title: const Text('FlAnchorScroll')),
+        floatingActionButton: FloatingActionButton(
+            child: const Icon(Icons.arrow_upward),
+            onPressed: () {
+              anchorScrollController.animateTo(0,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.linear);
+            }),
         body: CustomScrollView(controller: anchorScrollController, slivers: [
           SliverToBoxAdapter(child: header),
           SliverList(
@@ -42,6 +50,8 @@ class _AppState extends State<_App> {
               final item = list[index];
               return AnchorScrollTag(
                   key: ValueKey(index),
+                  highlightColor: Colors.red,
+                  color: Colors.blue,
                   controller: anchorScrollController,
                   index: index,
                   child: VisibilityDetector(
@@ -56,7 +66,7 @@ class _AppState extends State<_App> {
                         states[index] = info.visibleFraction > 0.5;
                       },
                       child: Container(
-                          color: item,
+                          margin: const EdgeInsets.all(10),
                           width: double.infinity,
                           alignment: Alignment.center,
                           height: index.isEven ? 100 : 400,
@@ -77,16 +87,29 @@ class _AppState extends State<_App> {
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         ElevatedButton(
             onPressed: () {
-              anchorScrollController.scrollToIndex(4,
+              anchorScrollController.animateToIndex(100,
                   preferPosition: AnchorScrollPosition.begin);
             },
-            child: const Text('jump4')),
+            child: const Text('jump100')),
         ElevatedButton(
             onPressed: () {
-              anchorScrollController.scrollToIndex(10,
+              anchorScrollController.highlight(10);
+            },
+            child: const Text('highlight')),
+        // ElevatedButton(
+        //     onPressed: () {
+        //       anchorScrollController.animateToIndex(1000,
+        //           duration: const Duration(milliseconds: 1),
+        //           preferPosition: AnchorScrollPosition.begin);
+        //     },
+        //     child: const Text('jump1000')),
+        ElevatedButton(
+            onPressed: () {
+              anchorScrollController.animateToIndex(3000,
+                  duration: const Duration(milliseconds: 1),
                   preferPosition: AnchorScrollPosition.begin);
             },
-            child: const Text('jump10')),
+            child: const Text('jump3000')),
       ]),
     ]);
   }

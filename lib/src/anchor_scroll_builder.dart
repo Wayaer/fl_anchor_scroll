@@ -20,7 +20,7 @@ class AnchorScrollBuilder extends StatefulWidget {
 }
 
 class AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
-  List<bool> states = [];
+  List<bool> itemStates = [];
 
   @override
   void initState() {
@@ -36,7 +36,7 @@ class AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
   }
 
   void initialize() {
-    states = List.generate(widget.itemCount, (index) => false);
+    itemStates = List.generate(widget.itemCount, (index) => false);
   }
 
   void listener() {
@@ -49,8 +49,8 @@ class AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
 
   void getStates() {
     List<int> index = [];
-    for (int i = 0; i < states.length; i++) {
-      if (states[i]) {
+    for (int i = 0; i < itemStates.length; i++) {
+      if (itemStates[i]) {
         index.add(i);
       }
     }
