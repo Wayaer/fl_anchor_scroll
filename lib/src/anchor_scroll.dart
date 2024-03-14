@@ -1,38 +1,20 @@
 part of '../fl_anchor_scroll.dart';
 
-const defaultScrollDistanceOffset = 100.0;
-const defaultDurationUnit = 40;
+const _kDefaultScrollDistanceOffset = 100.0;
+const _kDefaultDurationUnit = 40;
 
-const _millisecond = Duration(milliseconds: 1);
-const _highlightDuration = Duration(seconds: 3);
-const scrollAnimationDuration = Duration(milliseconds: 250);
+const _kMillisecond = Duration(milliseconds: 1);
+const _kHighlightDuration = Duration(seconds: 3);
+const _kScrollAnimationDuration = Duration(milliseconds: 250);
 
 typedef ViewportBoundaryGetter = Rect Function();
 typedef AxisValueGetter = double Function(Rect rect);
 
 Rect defaultViewportBoundaryGetter() => Rect.zero;
 
-abstract class AnchorScrollController implements ScrollController {
-  factory AnchorScrollController(
-      {double initialScrollOffset = 0.0,
-      bool keepScrollOffset = true,
-      double? suggestedRowHeight,
-      ViewportBoundaryGetter viewportBoundaryGetter =
-          defaultViewportBoundaryGetter,
-      Axis? axis,
-      String? debugLabel,
-      AnchorScrollController? copyTagsFrom}) {
-    return SimpleAnchorScrollController(
-        initialScrollOffset: initialScrollOffset,
-        keepScrollOffset: keepScrollOffset,
-        suggestedRowHeight: suggestedRowHeight,
-        viewportBoundaryGetter: viewportBoundaryGetter,
-        beginGetter: axis == Axis.horizontal ? (r) => r.left : (r) => r.top,
-        endGetter: axis == Axis.horizontal ? (r) => r.right : (r) => r.bottom,
-        copyTagsFrom: copyTagsFrom,
-        debugLabel: debugLabel);
-  }
+enum AnchorScrollPosition { begin, middle, end }
 
+abstract class FlAnchorScrollController implements ScrollController {
   /// used to quick scroll to a index if the row height is the same
   double? get suggestedRowHeight;
 
@@ -60,13 +42,13 @@ abstract class AnchorScrollController implements ScrollController {
 
   /// scroll to the giving index
   Future scrollToIndex(int index,
-      {Duration duration = scrollAnimationDuration,
+      {Duration duration = _kScrollAnimationDuration,
       AnchorScrollPosition? preferPosition});
 
   /// highlight the item
   Future highlight(int index,
       {bool cancelExistHighlights = true,
-      Duration highlightDuration = _highlightDuration,
+      Duration highlightDuration = _kHighlightDuration,
       bool animated = true});
 
   /// cancel all highlight item immediately.
@@ -77,8 +59,22 @@ abstract class AnchorScrollController implements ScrollController {
   bool isIndexStateInLayoutRange(int index);
 }
 
-class SimpleAnchorScrollController extends ScrollController
+class AnchorScrollController extends ScrollController
     with AnchorScrollControllerMixin {
+  AnchorScrollController(
+      {super.initialScrollOffset = 0.0,
+      super.keepScrollOffset = true,
+      Axis? axis,
+      this.suggestedRowHeight,
+      this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
+      FlAnchorScrollController? copyTagsFrom,
+      super.debugLabel})
+      : beginGetter = (axis == Axis.horizontal ? (r) => r.left : (r) => r.top),
+        endGetter =
+            (axis == Axis.horizontal ? (r) => r.right : (r) => r.bottom) {
+    if (copyTagsFrom != null) tagMap.addAll(copyTagsFrom.tagMap);
+  }
+
   @override
   final double? suggestedRowHeight;
   @override
@@ -87,47 +83,38 @@ class SimpleAnchorScrollController extends ScrollController
   final AxisValueGetter beginGetter;
   @override
   final AxisValueGetter endGetter;
+}
 
-  SimpleAnchorScrollController(
-      {super.initialScrollOffset,
-      super.keepScrollOffset,
+class PageAnchorScrollController extends PageController
+    with AnchorScrollControllerMixin {
+  @override
+  final double? suggestedRowHeight;
+
+  @override
+  final ViewportBoundaryGetter viewportBoundaryGetter;
+
+  @override
+  final AxisValueGetter beginGetter;
+
+  @override
+  final AxisValueGetter endGetter;
+
+  PageAnchorScrollController(
+      {super.initialPage,
+      super.keepPage,
+      super.viewportFraction,
       this.suggestedRowHeight,
       this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-      required this.beginGetter,
-      required this.endGetter,
-      AnchorScrollController? copyTagsFrom,
-      super.debugLabel}) {
+      FlAnchorScrollController? copyTagsFrom,
+      String? debugLabel})
+      : beginGetter = ((Rect rect) => rect.left),
+        endGetter = ((Rect rect) => rect.right) {
     if (copyTagsFrom != null) tagMap.addAll(copyTagsFrom.tagMap);
   }
 }
 
-// class PageAnchorScrollController extends PageController
-//     with AnchorScrollControllerMixin {
-//   @override
-//   final double? suggestedRowHeight;
-//   @override
-//   final ViewportBoundaryGetter viewportBoundaryGetter;
-//   @override
-//   final AxisValueGetter beginGetter = (Rect rect) => rect.left;
-//   @override
-//   final AxisValueGetter endGetter = (Rect rect) => rect.right;
-//
-//   PageAnchorScrollController(
-//       {super.initialPage,
-//       super.keepPage,
-//       super.viewportFraction,
-//       this.suggestedRowHeight,
-//       this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-//       AnchorScrollController? copyTagsFrom,
-//       String? debugLabel}) {
-//     if (copyTagsFrom != null) tagMap.addAll(copyTagsFrom.tagMap);
-//   }
-// }
-
-enum AnchorScrollPosition { begin, middle, end }
-
 mixin AnchorScrollControllerMixin on ScrollController
-    implements AnchorScrollController {
+    implements FlAnchorScrollController {
   @override
   final Map<int, AnchorScrollTagState> tagMap = <int, AnchorScrollTagState>{};
 
@@ -197,7 +184,7 @@ mixin AnchorScrollControllerMixin on ScrollController
   static const maxBound = 30; // 0.5 second if 60fps
   @override
   Future scrollToIndex(int index,
-      {Duration duration = scrollAnimationDuration,
+      {Duration duration = _kScrollAnimationDuration,
       AnchorScrollPosition? preferPosition}) async {
     return co(
         this,
@@ -206,7 +193,7 @@ mixin AnchorScrollControllerMixin on ScrollController
   }
 
   Future _scrollToIndex(int index,
-      {Duration duration = scrollAnimationDuration,
+      {Duration duration = _kScrollAnimationDuration,
       AnchorScrollPosition? preferPosition}) async {
     assert(duration > Duration.zero);
 
@@ -218,7 +205,6 @@ mixin AnchorScrollControllerMixin on ScrollController
           return null;
         }
       }
-
       return null;
     }
 
@@ -243,7 +229,7 @@ mixin AnchorScrollControllerMixin on ScrollController
       bool contains = false;
       Duration spentDuration = const Duration();
       double lastScrollDirection = 0.5; // alignment, default center;
-      final moveDuration = duration ~/ defaultDurationUnit;
+      final moveDuration = duration ~/ _kDefaultDurationUnit;
 
       _isAnchorScrolling = true;
 
@@ -285,7 +271,8 @@ mixin AnchorScrollControllerMixin on ScrollController
             _isAnchorScrolling = true;
             final remaining = duration - spentDuration;
             await animateTo(finalOffset,
-                duration: remaining <= Duration.zero ? _millisecond : remaining,
+                duration:
+                    remaining <= Duration.zero ? _kMillisecond : remaining,
                 curve: Curves.ease);
             await _waitForWidgetStateBuild();
 
@@ -294,7 +281,7 @@ mixin AnchorScrollControllerMixin on ScrollController
                   i < 3 && hasClients && offset != finalOffset;
                   i++) {
                 await animateTo(finalOffset,
-                    duration: _millisecond, curve: Curves.ease);
+                    duration: _kMillisecond, curve: Curves.ease);
                 await _waitForWidgetStateBuild();
               }
             }
@@ -310,7 +297,7 @@ mixin AnchorScrollControllerMixin on ScrollController
   @override
   Future highlight(int index,
       {bool cancelExistHighlights = true,
-      Duration highlightDuration = _highlightDuration,
+      Duration highlightDuration = _kHighlightDuration,
       bool animated = true}) async {
     final tag = tagMap[index];
     return tag == null
@@ -360,7 +347,7 @@ mixin AnchorScrollControllerMixin on ScrollController
           _offsetToRevealInViewport(currentNearestIndex, alignment);
 
       absoluteOffsetToViewport = offsetToLastState?.offset;
-      absoluteOffsetToViewport ??= defaultScrollDistanceOffset;
+      absoluteOffsetToViewport ??= _kDefaultScrollDistanceOffset;
     }
 
     return absoluteOffsetToViewport;
@@ -467,7 +454,7 @@ typedef TagHighlightBuilder = Widget Function(
     BuildContext context, Animation<double> highlight);
 
 class AnchorScrollTag extends StatefulWidget {
-  final AnchorScrollController controller;
+  final FlAnchorScrollController controller;
   final int index;
   final Widget? child;
   final TagHighlightBuilder? builder;
@@ -530,18 +517,12 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
   }
 
   void register(int index) {
-    // the caller in initState() or dispose() is not in the order of first dispose and init
-    // so we can't assert there isn't a existing key
-    // assert(!widget.controller.tagMap.keys.contains(index));
     widget.controller.tagMap[index] = this;
   }
 
   void unregister(int index) {
     _cancelController();
     _highlights.remove(this);
-    // the caller in initState() or dispose() is not in the order of first dispose and init
-    // so we can't assert there isn't a existing key
-    // assert(widget.controller.tagMap.keys.contains(index));
     if (widget.controller.tagMap[index] == this) {
       widget.controller.tagMap.remove(index);
     }
@@ -551,12 +532,12 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
   Widget build(BuildContext context) {
     final animation = _controller ?? kAlwaysDismissedAnimation;
     return widget.builder?.call(context, animation) ??
-        buildHighlightTransition(
+        _HighlightTransition(
             context: context,
             highlight: animation,
-            child: widget.child!,
             background: widget.color,
-            highlightColor: widget.highlightColor);
+            highlightColor: widget.highlightColor,
+            child: widget.child!);
   }
 
   DateTime? _startKey;
@@ -564,7 +545,7 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
   /// this function can be called multiple times. every call will reset the highlight style.
   Future highlight(
       {bool cancelExisting = true,
-      Duration highlightDuration = _highlightDuration,
+      Duration highlightDuration = _kHighlightDuration,
       bool animated = true}) async {
     if (!mounted) return null;
 
@@ -587,7 +568,7 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
     setState(() {});
     if (animated) {
       await catchAnimationCancel(_controller!
-          .animateTo(animationShow, duration: scrollAnimationDuration));
+          .animateTo(animationShow, duration: _kScrollAnimationDuration));
     } else {
       _controller!.value = animationShow;
     }
@@ -599,7 +580,7 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
         const animationHide = 0.0;
         if (animated) {
           await catchAnimationCancel(_controller!
-              .animateTo(animationHide, duration: scrollAnimationDuration));
+              .animateTo(animationHide, duration: _kScrollAnimationDuration));
         } else {
           _controller!.value = animationHide;
         }
@@ -622,20 +603,31 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
   }
 }
 
-Widget buildHighlightTransition(
-    {required BuildContext context,
-    required Animation<double> highlight,
-    required Widget child,
-    Color? background,
-    Color? highlightColor}) {
-  return DecoratedBoxTransition(
-      decoration: DecorationTween(
-              begin: background != null
-                  ? BoxDecoration(color: background)
-                  : const BoxDecoration(),
-              end: background != null
-                  ? BoxDecoration(color: background)
-                  : BoxDecoration(color: highlightColor))
-          .animate(highlight),
-      child: child);
+class _HighlightTransition extends StatelessWidget {
+  const _HighlightTransition(
+      {required this.context,
+      required this.highlight,
+      required this.child,
+      this.background,
+      this.highlightColor});
+
+  final BuildContext context;
+  final Animation<double> highlight;
+  final Widget child;
+  final Color? background;
+  final Color? highlightColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBoxTransition(
+        decoration: DecorationTween(
+                begin: background != null
+                    ? BoxDecoration(color: background)
+                    : const BoxDecoration(),
+                end: background != null
+                    ? BoxDecoration(color: background)
+                    : BoxDecoration(color: highlightColor))
+            .animate(highlight),
+        child: child);
+  }
 }
