@@ -23,7 +23,7 @@ Rect defaultViewportBoundaryGetter() => Rect.zero;
 
 enum AnchorScrollPosition { begin, middle, end }
 
-abstract class FlAnchorScrollController implements ScrollController {
+abstract class FlScrollController implements ScrollController {
   /// used to quick scroll to a index if the row height is the same
   double? get suggestedRowHeight;
 
@@ -41,7 +41,7 @@ abstract class FlAnchorScrollController implements ScrollController {
   bool get isAnchorScrolling;
 
   /// all layout out states will be put into this map
-  Map<int, _AnchorScrollTagState> get tagMap;
+  Map<int, AnchorScrollTagState> get tagMap;
 
   /// used to chaining parent scroll controller
   set parentController(ScrollController parentController);
@@ -68,15 +68,15 @@ abstract class FlAnchorScrollController implements ScrollController {
   bool isIndexStateInLayoutRange(int index);
 }
 
-class AnchorScrollController extends ScrollController
-    with _AnchorScrollControllerMixin {
-  AnchorScrollController(
+class FlAnchorScrollController extends ScrollController
+    with _FlAnchorScrollControllerMixin {
+  FlAnchorScrollController(
       {super.initialScrollOffset = 0.0,
       super.keepScrollOffset = true,
       Axis? axis,
       this.suggestedRowHeight,
       this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-      AnchorScrollController? copyTagsFrom,
+      FlAnchorScrollController? copyTagsFrom,
       super.debugLabel})
       : beginGetter = (axis == Axis.horizontal ? (r) => r.left : (r) => r.top),
         endGetter =
@@ -94,8 +94,8 @@ class AnchorScrollController extends ScrollController
   final AxisValueGetter endGetter;
 }
 
-class PageAnchorScrollController extends PageController
-    with _AnchorScrollControllerMixin {
+class FlPageAnchorScrollController extends PageController
+    with _FlAnchorScrollControllerMixin {
   @override
   final double? suggestedRowHeight;
 
@@ -108,13 +108,13 @@ class PageAnchorScrollController extends PageController
   @override
   final AxisValueGetter endGetter;
 
-  PageAnchorScrollController(
+  FlPageAnchorScrollController(
       {super.initialPage,
       super.keepPage,
       super.viewportFraction,
       this.suggestedRowHeight,
       this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-      PageAnchorScrollController? copyTagsFrom,
+      FlPageAnchorScrollController? copyTagsFrom,
       String? debugLabel})
       : beginGetter = ((Rect rect) => rect.left),
         endGetter = ((Rect rect) => rect.right) {
@@ -122,10 +122,10 @@ class PageAnchorScrollController extends PageController
   }
 }
 
-mixin _AnchorScrollControllerMixin on ScrollController
-    implements FlAnchorScrollController {
+mixin _FlAnchorScrollControllerMixin on ScrollController
+    implements FlScrollController {
   @override
-  final Map<int, _AnchorScrollTagState> tagMap = <int, _AnchorScrollTagState>{};
+  final Map<int, AnchorScrollTagState> tagMap = <int, AnchorScrollTagState>{};
 
   @override
   double? get suggestedRowHeight;
@@ -451,7 +451,7 @@ mixin _AnchorScrollControllerMixin on ScrollController
   }
 }
 
-void _cancelAllHighlights([_AnchorScrollTagState? state]) {
+void _cancelAllHighlights([AnchorScrollTagState? state]) {
   for (final tag in _highlights.keys) {
     tag._cancelController(reset: tag != state);
   }
@@ -475,7 +475,7 @@ class AnchorScrollTag extends StatefulWidget {
     this.onVisibilityChanged,
     this.visibilityDetectorKey,
   }) : assert(child != null || builder != null);
-  final FlAnchorScrollController controller;
+  final FlScrollController controller;
   final int index;
   final Widget? child;
   final TagHighlightBuilder? builder;
@@ -489,13 +489,13 @@ class AnchorScrollTag extends StatefulWidget {
 
   @override
   State<AnchorScrollTag> createState() =>
-      _AnchorScrollTagState<AnchorScrollTag>();
+      AnchorScrollTagState<AnchorScrollTag>();
 }
 
-Map<_AnchorScrollTagState, AnimationController?> _highlights =
-    <_AnchorScrollTagState, AnimationController?>{};
+Map<AnchorScrollTagState, AnimationController?> _highlights =
+    <AnchorScrollTagState, AnimationController?>{};
 
-class _AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
+class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
     with TickerProviderStateMixin {
   AnimationController? _controller;
 

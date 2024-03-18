@@ -12,8 +12,8 @@ typedef AnchorScrollBuilderAnchorScrollTag = Widget Function(
 typedef AnchorScrollBuilderVisibilityStateBuilder = bool Function(
     VisibilityInfo info);
 
-class AnchorScrollBuilder extends StatefulWidget {
-  const AnchorScrollBuilder({
+class FlAnchorScrollBuilder extends StatefulWidget {
+  const FlAnchorScrollBuilder({
     super.key,
     required this.controller,
     required this.builder,
@@ -28,8 +28,8 @@ class AnchorScrollBuilder extends StatefulWidget {
   /// build ScrollView
   final AnchorScrollBuilderScrollView builder;
 
-  /// AnchorScrollController
-  final AnchorScrollController controller;
+  /// FlAnchorScrollController
+  final FlAnchorScrollController controller;
   final AnchorScrollPosition? preferPosition;
 
   /// item 长度
@@ -48,10 +48,10 @@ class AnchorScrollBuilder extends StatefulWidget {
   final TabController? tabController;
 
   @override
-  State<AnchorScrollBuilder> createState() => _AnchorScrollBuilderState();
+  State<FlAnchorScrollBuilder> createState() => _AnchorScrollBuilderState();
 }
 
-class _AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
+class _AnchorScrollBuilderState extends State<FlAnchorScrollBuilder> {
   List<bool> itemStates = [];
   String lastIndex = '';
   bool isTabBarScrolling = false;
@@ -65,7 +65,7 @@ class _AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
   }
 
   @override
-  void didUpdateWidget(covariant AnchorScrollBuilder oldWidget) {
+  void didUpdateWidget(covariant FlAnchorScrollBuilder oldWidget) {
     super.didUpdateWidget(oldWidget);
     initialize();
   }

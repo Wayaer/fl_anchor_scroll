@@ -13,61 +13,61 @@ class AnchorScrollSliverGridPage extends StatefulWidget {
 class _AnchorScrollSliverGridPageState extends State<AnchorScrollSliverGridPage>
     with TickerProviderStateMixin {
   List<int> list = List.generate(100, (index) => index);
-  late AnchorScrollController anchorScrollController;
+  late FlAnchorScrollController anchorScrollController;
   late TabController tabController;
 
   @override
   void initState() {
     super.initState();
     tabController = TabController(length: list.length, vsync: this);
-    anchorScrollController = AnchorScrollController();
+    anchorScrollController = FlAnchorScrollController();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(title: const Text('With SliverGrid')),
-        body: CustomScrollView(controller: anchorScrollController, slivers: [
-          SliverToBoxAdapter(child: header),
-          ExtendedSliverPersistentHeader(
-              child: Container(
-            color: context.theme.cardColor,
-            child: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                controller: tabController,
-                tabs: list.builder((item) => Tab(text: 'Tab$item'))),
-          )),
-          AnchorScrollBuilder(
-              controller: anchorScrollController,
-              itemCount: list.length,
-              tabController: tabController,
-              onIndexChanged: (List<int> index) {
-                // log('onIndexChanged:$index');
-              },
-              builder: (_, itemBuilder) => SliverGrid(
-                    delegate: SliverChildBuilderDelegate((_, int index) {
-                      return itemBuilder(
-                          index,
-                          Container(
-                              margin: const EdgeInsets.all(10),
-                              width: double.infinity,
-                              color: index.isEven
-                                  ? Colors.amber
-                                  : Colors.blueAccent,
-                              alignment: Alignment.center,
-                              height: index.isEven ? 300 : 200,
-                              child: Text(
-                                '$index',
-                                style: const TextStyle(
-                                    color: Colors.black, fontSize: 19),
-                              )));
-                    }, childCount: list.length),
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 100),
+        body: FlAnchorScrollBuilder(
+            controller: anchorScrollController,
+            itemCount: list.length,
+            tabController: tabController,
+            onIndexChanged: (List<int> index) {
+              // log('onIndexChanged:$index');
+            },
+            builder: (_, itemBuilder) =>
+                CustomScrollView(controller: anchorScrollController, slivers: [
+                  SliverToBoxAdapter(child: header),
+                  ExtendedSliverPersistentHeader(
+                      child: Container(
+                    color: context.theme.cardColor,
+                    child: TabBar(
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        controller: tabController,
+                        tabs: list.builder((item) => Tab(text: 'Tab$item'))),
                   )),
-        ]));
+                  SliverGrid(
+                      delegate: SliverChildBuilderDelegate((_, int index) {
+                        return itemBuilder(
+                            index,
+                            Container(
+                                margin: const EdgeInsets.all(10),
+                                width: double.infinity,
+                                color: index.isEven
+                                    ? Colors.amber
+                                    : Colors.blueAccent,
+                                alignment: Alignment.center,
+                                height: index.isEven ? 300 : 200,
+                                child: Text(
+                                  '$index',
+                                  style: const TextStyle(
+                                      color: Colors.black, fontSize: 19),
+                                )));
+                      }, childCount: list.length),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 100)),
+                ])));
   }
 
   Widget get header {
