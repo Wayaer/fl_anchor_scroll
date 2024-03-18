@@ -9,8 +9,6 @@ import 'dart:collection';
 
 import 'package:visibility_detector/visibility_detector.dart';
 
-part 'util.dart';
-
 const _kDefaultScrollDistanceOffset = 100.0;
 const _kDefaultDurationUnit = 40;
 
