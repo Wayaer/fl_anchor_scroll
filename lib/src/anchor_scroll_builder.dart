@@ -1,4 +1,5 @@
-part of '../fl_anchor_scroll.dart';
+import 'package:fl_anchor_scroll/fl_anchor_scroll.dart';
+import 'package:flutter/material.dart';
 
 typedef AnchorScrollBuilderIndexChanged = void Function(List<int> index);
 
@@ -47,10 +48,10 @@ class AnchorScrollBuilder extends StatefulWidget {
   final TabController? tabController;
 
   @override
-  State<AnchorScrollBuilder> createState() => AnchorScrollBuilderState();
+  State<AnchorScrollBuilder> createState() => _AnchorScrollBuilderState();
 }
 
-class AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
+class _AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
   List<bool> itemStates = [];
   String lastIndex = '';
   bool isTabBarScrolling = false;

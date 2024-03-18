@@ -1,4 +1,15 @@
-part of '../fl_anchor_scroll.dart';
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
+
+import 'dart:collection';
+
+import 'package:visibility_detector/visibility_detector.dart';
+
+part 'util.dart';
 
 const _kDefaultScrollDistanceOffset = 100.0;
 const _kDefaultDurationUnit = 40;
@@ -32,7 +43,7 @@ abstract class FlAnchorScrollController implements ScrollController {
   bool get isAnchorScrolling;
 
   /// all layout out states will be put into this map
-  Map<int, AnchorScrollTagState> get tagMap;
+  Map<int, _AnchorScrollTagState> get tagMap;
 
   /// used to chaining parent scroll controller
   set parentController(ScrollController parentController);
@@ -60,7 +71,7 @@ abstract class FlAnchorScrollController implements ScrollController {
 }
 
 class AnchorScrollController extends ScrollController
-    with AnchorScrollControllerMixin {
+    with _AnchorScrollControllerMixin {
   AnchorScrollController(
       {super.initialScrollOffset = 0.0,
       super.keepScrollOffset = true,
@@ -86,7 +97,7 @@ class AnchorScrollController extends ScrollController
 }
 
 class PageAnchorScrollController extends PageController
-    with AnchorScrollControllerMixin {
+    with _AnchorScrollControllerMixin {
   @override
   final double? suggestedRowHeight;
 
@@ -113,10 +124,10 @@ class PageAnchorScrollController extends PageController
   }
 }
 
-mixin AnchorScrollControllerMixin on ScrollController
+mixin _AnchorScrollControllerMixin on ScrollController
     implements FlAnchorScrollController {
   @override
-  final Map<int, AnchorScrollTagState> tagMap = <int, AnchorScrollTagState>{};
+  final Map<int, _AnchorScrollTagState> tagMap = <int, _AnchorScrollTagState>{};
 
   @override
   double? get suggestedRowHeight;
@@ -442,7 +453,7 @@ mixin AnchorScrollControllerMixin on ScrollController
   }
 }
 
-void _cancelAllHighlights([AnchorScrollTagState? state]) {
+void _cancelAllHighlights([_AnchorScrollTagState? state]) {
   for (final tag in _highlights.keys) {
     tag._cancelController(reset: tag != state);
   }
@@ -479,13 +490,14 @@ class AnchorScrollTag extends StatefulWidget {
   final Key? visibilityDetectorKey;
 
   @override
-  AnchorScrollTagState createState() => AnchorScrollTagState<AnchorScrollTag>();
+  State<AnchorScrollTag> createState() =>
+      _AnchorScrollTagState<AnchorScrollTag>();
 }
 
-Map<AnchorScrollTagState, AnimationController?> _highlights =
-    <AnchorScrollTagState, AnimationController?>{};
+Map<_AnchorScrollTagState, AnimationController?> _highlights =
+    <_AnchorScrollTagState, AnimationController?>{};
 
-class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
+class _AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
     with TickerProviderStateMixin {
   AnimationController? _controller;
 
@@ -640,4 +652,52 @@ class _HighlightTransition extends StatelessWidget {
             .animate(highlight),
         child: child);
   }
+}
+
+/// used to invoke async functions in order
+Future<T> _co<T>(key, FutureOr<T> Function() action) async {
+  for (;;) {
+    final c = _locks[key];
+    if (c == null) break;
+    try {
+      await c.future;
+    } catch (_) {} //ignore error (so it will continue)
+  }
+
+  final c = _locks[key] = Completer<T>();
+  void then(T result) {
+    final c2 = _locks.remove(key);
+    c.complete(result);
+
+    assert(identical(c, c2));
+  }
+
+  void catchError(ex, StackTrace st) {
+    final c2 = _locks.remove(key);
+    c.completeError(ex, st);
+
+    assert(identical(c, c2));
+  }
+
+  try {
+    final result = action();
+    if (result is Future<T>) {
+      result.then(then).catchError(catchError);
+    } else {
+      then(result);
+    }
+  } catch (ex, st) {
+    catchError(ex, st);
+  }
+
+  return c.future;
+}
+
+final _locks = HashMap<dynamic, Completer>();
+
+/// skip the TickerCanceled exception
+Future _catchAnimationCancel(TickerFuture future) async {
+  return future.orCancel.catchError((_) async {
+    return null;
+  }, test: (ex) => ex is TickerCanceled);
 }

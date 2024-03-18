@@ -27,26 +27,24 @@ class _AnchorScrollSliverListPageState extends State<AnchorScrollSliverListPage>
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(title: const Text('With SliverList')),
-        body: AnchorScrollBuilder(
-            controller: anchorScrollController,
-            itemCount: list.length,
-            tabController: tabController,
-            onIndexChanged: (List<int> index) {
-              // log('onIndexChanged:$index');
-            },
-            builder: (_, itemBuilder) =>
-                CustomScrollView(controller: anchorScrollController, slivers: [
-                  SliverToBoxAdapter(child: header),
-                  ExtendedSliverPersistentHeader(
-                      child: Container(
-                          color: context.theme.cardColor,
-                          child: TabBar(
-                              isScrollable: true,
-                              tabAlignment: TabAlignment.start,
-                              controller: tabController,
-                              tabs: list
-                                  .builder((item) => Tab(text: 'Tab$item'))))),
-                  SliverList(
+        body: CustomScrollView(controller: anchorScrollController, slivers: [
+          SliverToBoxAdapter(child: header),
+          ExtendedSliverPersistentHeader(
+              child: Container(
+                  color: context.theme.cardColor,
+                  child: TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      controller: tabController,
+                      tabs: list.builder((item) => Tab(text: 'Tab$item'))))),
+          AnchorScrollBuilder(
+              controller: anchorScrollController,
+              itemCount: list.length,
+              tabController: tabController,
+              onIndexChanged: (List<int> index) {
+                // log('onIndexChanged:$index');
+              },
+              builder: (_, itemBuilder) => SliverList(
                     delegate: SliverChildBuilderDelegate((_, int index) {
                       return itemBuilder(
                           index,
@@ -64,8 +62,8 @@ class _AnchorScrollSliverListPageState extends State<AnchorScrollSliverListPage>
                                     color: Colors.black, fontSize: 19),
                               )));
                     }, childCount: list.length),
-                  ),
-                ])));
+                  )),
+        ]));
   }
 
   Widget get header {
