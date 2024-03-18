@@ -1,3 +1,4 @@
+import 'package:example/src/anchor_scroll.dart';
 import 'package:example/src/sliver_grid.dart';
 import 'package:example/src/sliver_list.dart';
 import 'package:fl_extended/fl_extended.dart';
@@ -24,6 +25,11 @@ class _App extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          ElevatedButton(
+              onPressed: () {
+                push(const AnchorScrollPage());
+              },
+              child: const Text('AnchorScrollTag')),
           ElevatedButton(
               onPressed: () {
                 push(const AnchorScrollSliverGridPage());

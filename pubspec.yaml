@@ -1,5 +1,5 @@
 name: fl_anchor_scroll
-description: "fl_anchor_scroll"
+description: "ScrollView anchor scrolling supports tab switching linkage"
 version: 0.0.1
 repository: https://github.com/Wayaer/fl_anchor_scroll.git
 

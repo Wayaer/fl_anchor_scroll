@@ -13,14 +13,14 @@ class AnchorScrollSliverListPage extends StatefulWidget {
 class _AnchorScrollSliverListPageState extends State<AnchorScrollSliverListPage>
     with TickerProviderStateMixin {
   List<int> list = List.generate(100, (index) => index);
-  late FlAnchorScrollController anchorScrollController;
+  late FlAnchorScrollController scrollController;
   late TabController tabController;
 
   @override
   void initState() {
     super.initState();
     tabController = TabController(length: list.length, vsync: this);
-    anchorScrollController = FlAnchorScrollController();
+    scrollController = FlAnchorScrollController();
   }
 
   @override
@@ -28,14 +28,14 @@ class _AnchorScrollSliverListPageState extends State<AnchorScrollSliverListPage>
     return Scaffold(
         appBar: AppBar(title: const Text('With SliverList')),
         body: FlAnchorScrollBuilder(
-            controller: anchorScrollController,
+            controller: scrollController,
             itemCount: list.length,
             tabController: tabController,
             onIndexChanged: (List<int> index) {
               // log('onIndexChanged:$index');
             },
             builder: (_, itemBuilder) =>
-                CustomScrollView(controller: anchorScrollController, slivers: [
+                CustomScrollView(controller: scrollController, slivers: [
                   SliverToBoxAdapter(child: header),
                   ExtendedSliverPersistentHeader(
                       child: Container(
