@@ -183,7 +183,7 @@ mixin AnchorScrollControllerMixin on ScrollController
 
   static const maxBound = 30; // 0.5 second if 60fps
   @override
-  Future animateToIndex(int index,
+  Future<void> animateToIndex(int index,
       {Duration duration = _kScrollAnimationDuration,
       AnchorScrollPosition? preferPosition}) async {
     return _co(
@@ -192,25 +192,25 @@ mixin AnchorScrollControllerMixin on ScrollController
             duration: duration, preferPosition: preferPosition));
   }
 
-  Future _scrollToIndex(int index,
+  Future<void> _scrollToIndex(int index,
       {Duration duration = _kScrollAnimationDuration,
       AnchorScrollPosition? preferPosition}) async {
     assert(duration > Duration.zero);
 
-    Future makeSureStateIsReady() async {
+    Future<void> makeSureStateIsReady() async {
       for (var count = 0; count < maxBound; count++) {
         if (_isEmptyStates) {
           await _waitForWidgetStateBuild();
         } else {
-          return null;
+          return;
         }
       }
-      return null;
+      return;
     }
 
     await makeSureStateIsReady();
 
-    if (!hasClients) return null;
+    if (!hasClients) return;
 
     if (isIndexStateInLayoutRange(index)) {
       _isAnchorScrolling = true;
@@ -239,7 +239,7 @@ mixin AnchorScrollControllerMixin on ScrollController
         prevOffset = currentOffset;
         final nearest = _getNearestIndex(index);
 
-        if (tagMap[nearest ?? 0] == null) return null;
+        if (tagMap[nearest ?? 0] == null) return;
 
         final moveTarget =
             _forecastMoveUnit(index, nearest, usedSuggestedRowHeightIfAny)!;
@@ -291,7 +291,7 @@ mixin AnchorScrollControllerMixin on ScrollController
       }
     }
 
-    return null;
+    return;
   }
 
   @override
@@ -454,6 +454,18 @@ typedef TagHighlightBuilder = Widget Function(
     BuildContext context, Animation<double> highlight);
 
 class AnchorScrollTag extends StatefulWidget {
+  const AnchorScrollTag({
+    required super.key,
+    required this.controller,
+    required this.index,
+    this.child,
+    this.builder,
+    this.color,
+    this.highlightColor,
+    this.disabled = false,
+    this.onVisibilityChanged,
+    this.visibilityDetectorKey,
+  }) : assert(child != null || builder != null);
   final FlAnchorScrollController controller;
   final int index;
   final Widget? child;
@@ -462,17 +474,9 @@ class AnchorScrollTag extends StatefulWidget {
   final Color? highlightColor;
   final bool disabled;
 
-  const AnchorScrollTag(
-      {required Key key,
-      required this.controller,
-      required this.index,
-      this.child,
-      this.builder,
-      this.color,
-      this.highlightColor,
-      this.disabled = false})
-      : assert(child != null || builder != null),
-        super(key: key);
+  /// The callback to invoke when this widget's visibility changes.
+  final VisibilityChangedCallback? onVisibilityChanged;
+  final Key? visibilityDetectorKey;
 
   @override
   AnchorScrollTagState createState() => AnchorScrollTagState<AnchorScrollTag>();
@@ -511,7 +515,6 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
         oldWidget.key != widget.key ||
         oldWidget.disabled != widget.disabled) {
       if (!oldWidget.disabled) unregister(oldWidget.index);
-
       if (!widget.disabled) register(widget.index);
     }
   }
@@ -531,12 +534,21 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
   @override
   Widget build(BuildContext context) {
     final animation = _controller ?? kAlwaysDismissedAnimation;
-    return _HighlightTransition(
+
+    final item = _HighlightTransition(
         context: context,
         highlight: animation,
         background: widget.color,
         highlightColor: widget.highlightColor,
         child: widget.child!);
+    if (widget.onVisibilityChanged != null &&
+        widget.visibilityDetectorKey != null) {
+      return VisibilityDetector(
+          key: widget.visibilityDetectorKey!,
+          onVisibilityChanged: widget.onVisibilityChanged,
+          child: item);
+    }
+    return item;
   }
 
   DateTime? _startKey;
@@ -596,7 +608,6 @@ class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
   void _cancelController({bool reset = true}) {
     if (_controller != null) {
       if (_controller!.isAnimating) _controller!.stop();
-
       if (reset && _controller!.value != 0.0) _controller!.value = 0.0;
     }
   }
