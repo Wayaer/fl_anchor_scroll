@@ -36,31 +36,42 @@ Widget build() {
 ```dart
 Widget build() {
   return FlAnchorScrollBuilder(
-      controller: anchorScrollController,
+      controller: scrollController,
       itemCount: list.length,
+      tabController: tabController,
       onIndexChanged: (List<int> index) {
         // log('onIndexChanged:$index');
       },
       builder: (_, itemBuilder) =>
-          CustomScrollView(controller: anchorScrollController, slivers: [
+          CustomScrollView(controller: scrollController, slivers: [
+            ExtendedSliverPersistentHeader(
+                child: Container(
+                    color: context.theme.cardColor,
+                    child: TabBar(
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        controller: tabController,
+                        tabs: list
+                            .builder((item) => Tab(text: 'Tab$item'))))),
             SliverList(
-                delegate: SliverChildBuilderDelegate((_, int index) {
-                  return itemBuilder(
-                      index,
-                      Container(
-                          margin: const EdgeInsets.all(10),
-                          width: double.infinity,
-                          color: index.isEven
-                              ? Colors.amber
-                              : Colors.blueAccent,
-                          alignment: Alignment.center,
-                          height: index.isEven ? 300 : 200,
-                          child: Text(
-                            '$index',
-                            style: const TextStyle(
-                                color: Colors.black, fontSize: 19),
-                          )));
-                }, childCount: list.length)),
+              delegate: SliverChildBuilderDelegate((_, int index) {
+                return itemBuilder(
+                    index,
+                    Container(
+                        margin: const EdgeInsets.all(10),
+                        width: double.infinity,
+                        color: index.isEven
+                            ? Colors.amber
+                            : Colors.blueAccent,
+                        alignment: Alignment.center,
+                        height: index.isEven ? 300 : 200,
+                        child: Text(
+                          '$index',
+                          style: const TextStyle(
+                              color: Colors.black, fontSize: 19),
+                        )));
+              }, childCount: list.length),
+            ),
           ]));
 }
 ```
