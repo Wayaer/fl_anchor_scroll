@@ -11,6 +11,7 @@ typedef AnchorScrollBuilderAnchorScrollTag = Widget Function(
 
 typedef AnchorScrollBuilderVisibilityStateBuilder = bool Function(
     VisibilityInfo info);
+typedef AnchorScrollBuilderTabController = void Function(int index);
 
 class FlAnchorScrollBuilder extends StatefulWidget {
   const FlAnchorScrollBuilder({
@@ -23,6 +24,7 @@ class FlAnchorScrollBuilder extends StatefulWidget {
     this.delayDuration = const Duration(milliseconds: 100),
     this.tabController,
     this.preferPosition,
+    this.tabControllerChanged,
   });
 
   /// build ScrollView
@@ -46,6 +48,9 @@ class FlAnchorScrollBuilder extends StatefulWidget {
 
   /// link TabController
   final TabController? tabController;
+
+  /// tab controller changed callback
+  final AnchorScrollBuilderTabController? tabControllerChanged;
 
   @override
   State<FlAnchorScrollBuilder> createState() => _AnchorScrollBuilderState();
@@ -82,15 +87,12 @@ class _AnchorScrollBuilderState extends State<FlAnchorScrollBuilder> {
     lastTabIndex = tabController.index;
     isTabBarScrolling = true;
     if (itemStates.length > lastTabIndex && !itemStates[lastTabIndex]) {
-      // print("=animateToIndex==${itemStates[lastTabIndex]}");
       widget.controller
           .animateToIndex(lastTabIndex, preferPosition: widget.preferPosition);
     }
   }
 
   void getItemState() {
-    // print(
-    //     '====isTabBarScrolling:${isTabBarScrolling}===isAnchorScrolling:${widget.controller.isAnchorScrolling}');
     bool isAnimate = isTabBarScrolling;
     if (widget.tabController != null && !isAnimate) {
       final controller = widget.controller;
@@ -120,8 +122,11 @@ class _AnchorScrollBuilderState extends State<FlAnchorScrollBuilder> {
 
   void animateToTabIndex(int i) {
     if (isTabBarScrolling || widget.tabController == null) return;
-    widget.tabController!.animateTo(i,
-        duration: const Duration(milliseconds: 250), curve: Curves.linear);
+    if (widget.tabControllerChanged == null) {
+      widget.tabController!.animateTo(i);
+    } else {
+      widget.tabControllerChanged?.call(i);
+    }
   }
 
   @override
