@@ -137,7 +137,9 @@ class _AnchorScrollBuilderState extends State<FlAnchorScrollBuilder> {
           if (notifier is ScrollEndNotification &&
               isTabBarScrolling &&
               !widget.controller.isAnchorScrolling) {
-            isTabBarScrolling = false;
+            Future.delayed(const Duration(milliseconds: 500), () {
+              isTabBarScrolling = false;
+            });
           }
           Future.delayed(widget.delayDuration, getItemState);
         }
