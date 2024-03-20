@@ -2,6 +2,7 @@
 
 ## 锚点定位
 
+## Run web [example](https://wayaer.github.io/fl_anchor_scroll/example/app/web/index.html#/)
 ### 简单的使用定位跳转
 
 ```dart
