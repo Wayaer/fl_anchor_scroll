@@ -30,11 +30,13 @@ class _App extends StatelessWidget {
                 push(const AnchorScrollPage());
               },
               child: const Text('AnchorScrollTag')),
+          20.heightBox,
           ElevatedButton(
               onPressed: () {
                 push(const AnchorScrollSliverGridPage());
               },
               child: const Text('AnchorScrollController with SliverGrid')),
+          20.heightBox,
           ElevatedButton(
               onPressed: () {
                 push(const AnchorScrollSliverListPage());
