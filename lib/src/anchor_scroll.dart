@@ -1,701 +1,268 @@
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/scheduler.dart';
 
-import 'dart:collection';
+class AnchorScrollController extends ScrollController {
+  List<GlobalKey> _keyList = [];
+  GlobalKey? _scrollKey;
+  RenderObject? _ancestor;
+  bool _reverse = false;
+  Axis _scrollDirection = Axis.vertical;
 
-import 'package:visibility_detector/visibility_detector.dart';
-
-const _kDefaultScrollDistanceOffset = 100.0;
-const _kDefaultDurationUnit = 40;
-
-const _kMillisecond = Duration(milliseconds: 1);
-const _kHighlightDuration = Duration(seconds: 3);
-const _kScrollAnimationDuration = Duration(milliseconds: 250);
-
-typedef ViewportBoundaryGetter = Rect Function();
-typedef AxisValueGetter = double Function(Rect rect);
-
-Rect defaultViewportBoundaryGetter() => Rect.zero;
-
-enum AnchorScrollPosition { begin, middle, end }
-
-abstract class FlScrollController implements ScrollController {
-  /// used to quick scroll to a index if the row height is the same
-  double? get suggestedRowHeight;
-
-  /// used to make the additional boundary for viewport
-  /// e.g. a sticky header which covers the real viewport of a list view
-  ViewportBoundaryGetter get viewportBoundaryGetter;
-
-  /// used to choose which direction you are using.
-  /// e.g. axis == Axis.horizontal ? (r) => r.left : (r) => r.top
-  AxisValueGetter get beginGetter;
-
-  AxisValueGetter get endGetter;
-
-  /// detect if it's in scrolling (scrolling is a async process)
-  bool get isAnchorScrolling;
-
-  /// all layout out states will be put into this map
-  Map<int, AnchorScrollTagState> get tagMap;
-
-  /// used to chaining parent scroll controller
-  set parentController(ScrollController parentController);
-
-  /// check if there is a parent controller
-  bool get hasParentController;
-
-  /// scroll to the giving index
-  Future animateToIndex(int index,
-      {Duration duration = _kScrollAnimationDuration,
-      AnchorScrollPosition? preferPosition});
-
-  /// highlight the item
-  Future highlight(int index,
-      {bool cancelExistHighlights = true,
-      Duration highlightDuration = _kHighlightDuration,
-      bool animated = true});
-
-  /// cancel all highlight item immediately.
-  void cancelAllHighlights();
-
-  /// check if the state is created. that is, is the indexed widget is layout out.
-  /// NOTE: state created doesn't mean it's in viewport. it could be a buffer range, depending on flutter's implementation.
-  bool isIndexStateInLayoutRange(int index);
-}
-
-class FlAnchorScrollController extends ScrollController
-    with _FlAnchorScrollControllerMixin {
-  FlAnchorScrollController(
-      {super.initialScrollOffset = 0.0,
-      super.keepScrollOffset = true,
-      Axis? axis,
-      this.suggestedRowHeight,
-      this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-      FlAnchorScrollController? copyTagsFrom,
-      super.debugLabel})
-      : beginGetter = (axis == Axis.horizontal ? (r) => r.left : (r) => r.top),
-        endGetter =
-            (axis == Axis.horizontal ? (r) => r.right : (r) => r.bottom) {
-    if (copyTagsFrom != null) tagMap.addAll(copyTagsFrom.tagMap);
+  void _setConfig(
+      int count, GlobalKey scrollKey, bool reverse, Axis scrollDirection) {
+    _scrollKey = scrollKey;
+    _reverse = reverse;
+    _scrollDirection = scrollDirection;
+    _keyList = List.generate(count, (index) => GlobalKey());
   }
 
-  @override
-  final double? suggestedRowHeight;
-  @override
-  final ViewportBoundaryGetter viewportBoundaryGetter;
-  @override
-  final AxisValueGetter beginGetter;
-  @override
-  final AxisValueGetter endGetter;
-}
+  /// 上次跳转的 index
+  int lastIndex = 0;
 
-class FlPageAnchorScrollController extends PageController
-    with _FlAnchorScrollControllerMixin {
-  @override
-  final double? suggestedRowHeight;
+  /// 最近一次跳转次数
+  int jumpTimes = 0;
 
-  @override
-  final ViewportBoundaryGetter viewportBoundaryGetter;
-
-  @override
-  final AxisValueGetter beginGetter;
-
-  @override
-  final AxisValueGetter endGetter;
-
-  FlPageAnchorScrollController(
-      {super.initialPage,
-      super.keepPage,
-      super.viewportFraction,
-      this.suggestedRowHeight,
-      this.viewportBoundaryGetter = defaultViewportBoundaryGetter,
-      FlPageAnchorScrollController? copyTagsFrom,
-      String? debugLabel})
-      : beginGetter = ((Rect rect) => rect.left),
-        endGetter = ((Rect rect) => rect.right) {
-    if (copyTagsFrom != null) tagMap.addAll(copyTagsFrom.tagMap);
-  }
-}
-
-mixin _FlAnchorScrollControllerMixin on ScrollController
-    implements FlScrollController {
-  @override
-  final Map<int, AnchorScrollTagState> tagMap = <int, AnchorScrollTagState>{};
-
-  @override
-  double? get suggestedRowHeight;
-
-  @override
-  ViewportBoundaryGetter get viewportBoundaryGetter;
-
-  @override
-  AxisValueGetter get beginGetter;
-
-  @override
-  AxisValueGetter get endGetter;
-
-  bool __isAnchorScrolling = false;
-
-  set _isAnchorScrolling(bool isAnchorScrolling) {
-    __isAnchorScrolling = isAnchorScrolling;
-    if (!isAnchorScrolling && hasClients) {
-      notifyListeners();
-    }
-  }
-
-  @override
-  bool get isAnchorScrolling => __isAnchorScrolling;
-
-  ScrollController? _parentController;
-
-  @override
-  set parentController(ScrollController parentController) {
-    if (_parentController == parentController) return;
-
-    final isNotEmpty = positions.isNotEmpty;
-    if (isNotEmpty && _parentController != null) {
-      for (final p in _parentController!.positions) {
-        if (positions.contains(p)) _parentController!.detach(p);
-      }
-    }
-
-    _parentController = parentController;
-
-    if (isNotEmpty && _parentController != null) {
-      for (final p in positions) {
-        _parentController!.attach(p);
-      }
-    }
-  }
-
-  @override
-  bool get hasParentController => _parentController != null;
-
-  @override
-  void attach(ScrollPosition position) {
-    super.attach(position);
-
-    _parentController?.attach(position);
-  }
-
-  @override
-  void detach(ScrollPosition position) {
-    _parentController?.detach(position);
-
-    super.detach(position);
-  }
-
-  static const maxBound = 30; // 0.5 second if 60fps
-  @override
+  /// 跳转至指定 index
+  /// [delayedDuration]和[animateDuration]一起为总的跳转时间
   Future<void> animateToIndex(int index,
-      {Duration duration = _kScrollAnimationDuration,
-      AnchorScrollPosition? preferPosition}) async {
-    return _co(
-        this,
-        () => _scrollToIndex(index,
-            duration: duration, preferPosition: preferPosition));
-  }
+          {
+          /// 延迟计算跳转
+          Duration delayedDuration = const Duration(milliseconds: 1),
 
-  Future<void> _scrollToIndex(int index,
-      {Duration duration = _kScrollAnimationDuration,
-      AnchorScrollPosition? preferPosition}) async {
-    assert(duration > Duration.zero);
+          /// animateTo 滚动时间
+          Duration animateDuration = const Duration(milliseconds: 10),
+          double ruleOutSpacing = 0,
+          Curve curve = Curves.linear}) =>
+      _jumpToIndex(index,
+          delayedDuration: delayedDuration,
+          animateDuration: animateDuration,
+          useAnimateTo: true,
+          ruleOutSpacing: ruleOutSpacing,
+          curve: curve);
 
-    Future<void> makeSureStateIsReady() async {
-      for (var count = 0; count < maxBound; count++) {
-        if (_isEmptyStates) {
-          await _waitForWidgetStateBuild();
-        } else {
-          return;
-        }
-      }
-      return;
-    }
+  /// 跳转至指定 index
+  Future<void> jumpToIndex(int index,
+          {
+          /// 延迟计算跳转
+          Duration duration = const Duration(microseconds: 1),
+          double ruleOutSpacing = 0}) =>
+      _jumpToIndex(index,
+          delayedDuration: duration,
+          useAnimateTo: false,
+          ruleOutSpacing: ruleOutSpacing);
 
-    await makeSureStateIsReady();
-
-    if (!hasClients) return;
-
-    if (isIndexStateInLayoutRange(index)) {
-      _isAnchorScrolling = true;
-
-      await _bringIntoViewportIfNeed(index, preferPosition,
-          (double offset) async {
-        await animateTo(offset, duration: duration, curve: Curves.ease);
-        await _waitForWidgetStateBuild();
-        return null;
-      });
-
-      _isAnchorScrolling = false;
-    } else {
-      double prevOffset = offset - 1;
-      double currentOffset = offset;
-      bool contains = false;
-      Duration spentDuration = const Duration();
-      double lastScrollDirection = 0.5; // alignment, default center;
-      final moveDuration = duration ~/ _kDefaultDurationUnit;
-
-      _isAnchorScrolling = true;
-
-      bool usedSuggestedRowHeightIfAny = true;
-      while (prevOffset != currentOffset &&
-          !(contains = isIndexStateInLayoutRange(index))) {
-        prevOffset = currentOffset;
-        final nearest = _getNearestIndex(index);
-
-        if (tagMap[nearest ?? 0] == null) return;
-
-        final moveTarget =
-            _forecastMoveUnit(index, nearest, usedSuggestedRowHeightIfAny)!;
-
-        final suggestedDuration =
-            usedSuggestedRowHeightIfAny && suggestedRowHeight != null
-                ? duration
-                : null;
-        usedSuggestedRowHeightIfAny = false; // just use once
-        lastScrollDirection = moveTarget - prevOffset > 0 ? 1 : 0;
-        currentOffset = moveTarget;
-        spentDuration += suggestedDuration ?? moveDuration;
-        final oldOffset = offset;
-        await animateTo(currentOffset,
-            duration: suggestedDuration ?? moveDuration, curve: Curves.ease);
-        await _waitForWidgetStateBuild();
-        if (!hasClients || offset == oldOffset) {
-          contains = isIndexStateInLayoutRange(index);
-          break;
-        }
-      }
-      _isAnchorScrolling = false;
-
-      if (contains && hasClients) {
-        await _bringIntoViewportIfNeed(
-            index, preferPosition ?? _alignmentToPosition(lastScrollDirection),
-            (finalOffset) async {
-          if (finalOffset != offset) {
-            _isAnchorScrolling = true;
-            final remaining = duration - spentDuration;
-            await animateTo(finalOffset,
-                duration:
-                    remaining <= Duration.zero ? _kMillisecond : remaining,
-                curve: Curves.ease);
-            await _waitForWidgetStateBuild();
-
-            if (hasClients && offset != finalOffset) {
-              for (var i = 0;
-                  i < 3 && hasClients && offset != finalOffset;
-                  i++) {
-                await animateTo(finalOffset,
-                    duration: _kMillisecond, curve: Curves.ease);
-                await _waitForWidgetStateBuild();
-              }
-            }
-            _isAnchorScrolling = false;
-          }
-        });
-      }
-    }
-
-    return;
-  }
-
-  @override
-  Future highlight(int index,
-      {bool cancelExistHighlights = true,
-      Duration highlightDuration = _kHighlightDuration,
-      bool animated = true}) async {
-    final tag = tagMap[index];
-    return tag == null
-        ? null
-        : await tag.highlight(
-            cancelExisting: cancelExistHighlights,
-            highlightDuration: highlightDuration,
-            animated: animated);
-  }
-
-  @override
-  void cancelAllHighlights() {
-    _cancelAllHighlights();
-  }
-
-  @override
-  bool isIndexStateInLayoutRange(int index) => tagMap[index] != null;
-
-  /// this means there is no widget state existing, usually happened before build.
-  /// we should wait for next frame.
-  bool get _isEmptyStates => tagMap.isEmpty;
-
-  /// wait until the [SchedulerPhase] in [SchedulerPhase.persistentCallbacks].
-  /// it means if we do animation scrolling to a position, the Future call back will in [SchedulerPhase.midFrameMicrotasks].
-  /// if we want to search viewport element depending on Widget State, we must delay it to [SchedulerPhase.persistentCallbacks].
-  /// which is the phase widget build/layout/draw
-  Future _waitForWidgetStateBuild() => SchedulerBinding.instance.endOfFrame;
-
-  /// NOTE: this is used to forcase the nearestIndex. if the the index equals targetIndex,
-  /// we will use the function, calling _directionalOffsetToRevealInViewport to get move unit.
-  double? _forecastMoveUnit(
-      int targetIndex, int? currentNearestIndex, bool useSuggested) {
-    assert(targetIndex != currentNearestIndex);
-    currentNearestIndex = currentNearestIndex ?? 0; //null as none of state
-
-    final alignment = targetIndex > currentNearestIndex ? 1.0 : 0.0;
-    double? absoluteOffsetToViewport;
-
-    if (useSuggested && suggestedRowHeight != null) {
-      final indexDiff = (targetIndex - currentNearestIndex);
-      final offsetToLastState = _offsetToRevealInViewport(
-          currentNearestIndex, indexDiff <= 0 ? 0 : 1)!;
-      absoluteOffsetToViewport = math.max(
-          offsetToLastState.offset + indexDiff * suggestedRowHeight!, 0);
-    } else {
-      final offsetToLastState =
-          _offsetToRevealInViewport(currentNearestIndex, alignment);
-
-      absoluteOffsetToViewport = offsetToLastState?.offset;
-      absoluteOffsetToViewport ??= _kDefaultScrollDistanceOffset;
-    }
-
-    return absoluteOffsetToViewport;
-  }
-
-  int? _getNearestIndex(int index) {
-    final list = tagMap.keys;
-    if (list.isEmpty) return null;
-
-    final sorted = list.toList()
-      ..sort((int first, int second) => first.compareTo(second));
-    final min = sorted.first;
-    final max = sorted.last;
-    return (index - min).abs() < (index - max).abs() ? min : max;
-  }
-
-  Future _bringIntoViewportIfNeed(
-      int index,
-      AnchorScrollPosition? preferPosition,
-      Future Function(double offset) move) async {
-    if (preferPosition != null) {
-      double targetOffset = _directionalOffsetToRevealInViewport(
-          index, _positionToAlignment(preferPosition));
-
-      targetOffset = targetOffset.clamp(
-          position.minScrollExtent, position.maxScrollExtent);
-
-      await move(targetOffset);
-    } else {
-      final begin = _directionalOffsetToRevealInViewport(index, 0);
-      final end = _directionalOffsetToRevealInViewport(index, 1);
-
-      final alreadyInViewport = offset < begin && offset > end;
-      if (!alreadyInViewport) {
-        double value;
-        if ((end - offset).abs() < (begin - offset).abs()) {
-          value = end;
-        } else {
-          value = begin;
-        }
-
-        await move(value > 0 ? value : 0);
-      }
-    }
-  }
-
-  double _positionToAlignment(AnchorScrollPosition position) {
-    return position == AnchorScrollPosition.begin
-        ? 0
-        : position == AnchorScrollPosition.end
-            ? 1
-            : 0.5;
-  }
-
-  AnchorScrollPosition _alignmentToPosition(double alignment) => alignment == 0
-      ? AnchorScrollPosition.begin
-      : alignment == 1
-          ? AnchorScrollPosition.end
-          : AnchorScrollPosition.middle;
-
-  double _directionalOffsetToRevealInViewport(int index, double alignment) {
-    assert(alignment == 0 || alignment == 0.5 || alignment == 1);
-    // 1.0 bottom, 0.5 center, 0.0 begin if list is vertically from begin to end
-    final tagOffsetInViewport = _offsetToRevealInViewport(index, alignment);
-
-    if (tagOffsetInViewport == null) {
-      return -1;
-    } else {
-      double absoluteOffsetToViewport = tagOffsetInViewport.offset;
-      if (alignment == 0.5) {
-        return absoluteOffsetToViewport;
-      } else if (alignment == 0) {
-        return absoluteOffsetToViewport - beginGetter(viewportBoundaryGetter());
+  /// 跳转至指定 index
+  Future<void> _jumpToIndex(int index,
+      {Duration delayedDuration = const Duration(milliseconds: 20),
+      Duration animateDuration = const Duration(milliseconds: 20),
+      bool useAnimateTo = false,
+      double ruleOutSpacing = 0,
+      Curve curve = Curves.linear}) async {
+    if (index >= _keyList.length) index = _keyList.length - 1;
+    if (index < 1) index = 1;
+    if (_ancestor == null) jumpTimes = 0;
+    _ancestor ??= _scrollKey!.currentContext!.findRenderObject();
+    final targetKey = _keyList[index];
+    GlobalKey? jumpKey;
+    if (targetKey.currentContext == null) {
+      final keys = _keyList.where((e) => e.currentContext != null);
+      if (keys.isEmpty) return;
+      if (index < lastIndex) {
+        jumpKey = keys.first;
       } else {
-        return absoluteOffsetToViewport + endGetter(viewportBoundaryGetter());
+        jumpKey = keys.last;
       }
+      final jumpIndex = _keyList.indexOf(jumpKey);
+      final value = useAnimateTo
+          ? await _animateTo(jumpKey.currentContext!,
+              duration: animateDuration,
+              curve: curve,
+              ruleOutSpacing: ruleOutSpacing)
+          : _jumpTo(jumpKey.currentContext!, ruleOutSpacing: ruleOutSpacing);
+      if (value) {
+        lastIndex = jumpIndex;
+        await Future.delayed(
+            delayedDuration,
+            () async => await _jumpToIndex(index,
+                animateDuration: animateDuration,
+                useAnimateTo: useAnimateTo,
+                delayedDuration: delayedDuration,
+                curve: curve));
+      }
+    } else {
+      lastIndex = index;
+      useAnimateTo
+          ? await _animateTo(targetKey.currentContext!,
+              duration: animateDuration,
+              curve: curve,
+              isEnd: true,
+              ruleOutSpacing: ruleOutSpacing)
+          : _jumpTo(targetKey.currentContext!,
+              isEnd: true, ruleOutSpacing: ruleOutSpacing);
+      jumpTimes = 0;
     }
   }
 
-  /// return offset, which is a absolute offset to bring the target index object into the center of the viewport
-  /// see also: _directionalOffsetToRevealInViewport()
-  RevealedOffset? _offsetToRevealInViewport(int index, double alignment) {
-    final ctx = tagMap[index]?.context;
-    if (ctx == null) return null;
+  bool _jumpTo(BuildContext context,
+      {bool isEnd = false, double ruleOutSpacing = 0}) {
+    final rect = context.getWidgetRectLocalToGlobal(ancestor: _ancestor);
+    if (rect != null) {
+      double dy = offset + _rectToOffset(rect, ruleOutSpacing: ruleOutSpacing);
+      if (dy == offset && !isEnd) {
+        dy = offset +
+            _rectToOffset(rect, useEnd: true, ruleOutSpacing: ruleOutSpacing);
+      }
+      if (dy == offset) return false;
+      if (dy > position.maxScrollExtent) dy = position.maxScrollExtent;
+      if (dy < 0) dy = 0;
+      jumpTo(dy);
+      jumpTimes += 1;
+      return true;
+    }
+    return false;
+  }
 
-    final renderBox = ctx.findRenderObject()!;
-    final RenderAbstractViewport viewport =
-        RenderAbstractViewport.of(renderBox);
-    final revealedOffset = viewport.getOffsetToReveal(renderBox, alignment);
+  double _rectToOffset(Rect rect,
+      {bool useEnd = false, double ruleOutSpacing = 0}) {
+    switch (_scrollDirection) {
+      case Axis.horizontal:
+        double left = rect.left + ruleOutSpacing;
+        if (useEnd) left += rect.width;
+        return _reverse ? -left : left;
+      case Axis.vertical:
+        double top = rect.top + ruleOutSpacing;
+        if (useEnd) top += rect.height;
+        return _reverse ? -top : top;
+    }
+  }
 
-    return revealedOffset;
+  Future<bool> _animateTo(BuildContext context,
+      {required Duration duration,
+      required Curve curve,
+      bool isEnd = false,
+      double ruleOutSpacing = 0}) async {
+    final rect = context.getWidgetRectLocalToGlobal(ancestor: _ancestor);
+    if (rect != null) {
+      double dy = offset + _rectToOffset(rect, ruleOutSpacing: ruleOutSpacing);
+      if (dy == offset && !isEnd) {
+        dy = offset +
+            _rectToOffset(rect, useEnd: true, ruleOutSpacing: ruleOutSpacing);
+      }
+      if (dy == offset) return false;
+      if (dy > position.maxScrollExtent) dy = position.maxScrollExtent;
+      if (dy < 0) dy = 0;
+      await animateTo(dy, duration: duration, curve: curve);
+      return true;
+    }
+    return false;
   }
 }
 
-void _cancelAllHighlights([AnchorScrollTagState? state]) {
-  for (final tag in _highlights.keys) {
-    tag._cancelController(reset: tag != state);
-  }
+typedef AnchorBuilder = Widget Function(
+    BuildContext context,
 
-  _highlights.clear();
-}
+    /// 务必把 [scrollKey] 赋值给 滚动组件[key]
+    GlobalKey scrollKey,
 
-typedef TagHighlightBuilder = Widget Function(
-    BuildContext context, Animation<double> highlight);
+    /// 务必把 [scrollController] 回传给 builder 里的滚动组件
+    ScrollController scrollController,
 
-class AnchorScrollTag extends StatefulWidget {
-  const AnchorScrollTag({
-    required super.key,
+    /// 如果使用 [reverse] 务必把 [reverse] 回传给 builder 里的滚动组件 默认为 false
+    bool reverse,
+
+    /// 如果使用 [scrollDirection] 务必把 [scrollDirection] 回传给 builder 里的滚动组件 默认为 Axis.vertical
+    Axis scrollDirection,
+
+    /// 务必将 entryKeys[index] 赋值给 子元素[key]
+    List<GlobalKey> entryKeys);
+
+/// 滚动至指定index子元素
+class AnchorScrollBuilder extends StatefulWidget {
+  const AnchorScrollBuilder({
+    super.key,
     required this.controller,
-    required this.index,
-    this.child,
-    this.builder,
-    this.color,
-    this.highlightColor,
-    this.disabled = false,
-    this.onVisibilityChanged,
-    this.visibilityDetectorKey,
-  }) : assert(child != null || builder != null);
-  final FlScrollController controller;
-  final int index;
-  final Widget? child;
-  final TagHighlightBuilder? builder;
-  final Color? color;
-  final Color? highlightColor;
-  final bool disabled;
+    required this.count,
+    required this.builder,
+    this.scrollDirection = Axis.vertical,
+    this.reverse = false,
+    this.disposeController = true,
+  });
 
-  /// The callback to invoke when this widget's visibility changes.
-  final VisibilityChangedCallback? onVisibilityChanged;
-  final Key? visibilityDetectorKey;
+  /// 必须把 [controller] 回传给 builder 里的滚动组件
+  final AnchorScrollController controller;
+
+  /// 必须把 [scrollDirection]] 回传给 builder 里的滚动组件
+  final Axis scrollDirection;
+
+  /// 必须把 [reverse] 回传给 builder 里的滚动组件
+  final bool reverse;
+
+  /// 子组件数量
+  final int count;
+
+  /// 默认为[true] 组件 dispose 时 自动调用 controller.dispose()
+  final bool disposeController;
+
+  /// 滚动组件构造器
+  final AnchorBuilder builder;
 
   @override
-  State<AnchorScrollTag> createState() =>
-      AnchorScrollTagState<AnchorScrollTag>();
+  State<AnchorScrollBuilder> createState() => _AnchorScrollBuilderState();
 }
 
-Map<AnchorScrollTagState, AnimationController?> _highlights =
-    <AnchorScrollTagState, AnimationController?>{};
-
-class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
-    with TickerProviderStateMixin {
-  AnimationController? _controller;
+class _AnchorScrollBuilderState extends State<AnchorScrollBuilder> {
+  GlobalKey scrollKey = GlobalKey();
+  late AnchorScrollController controller;
 
   @override
   void initState() {
+    controller = widget.controller;
+    controller._setConfig(
+        widget.count, scrollKey, widget.reverse, widget.scrollDirection);
     super.initState();
-    if (!widget.disabled) {
-      register(widget.index);
-    }
   }
+
+  @override
+  void didUpdateWidget(covariant AnchorScrollBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (controller != widget.controller) {
+      controller.dispose();
+      controller = widget.controller;
+    }
+    if (oldWidget.count != widget.count ||
+        oldWidget.reverse != widget.reverse ||
+        oldWidget.scrollDirection != widget.scrollDirection) {
+      controller._setConfig(
+          widget.count, scrollKey, widget.reverse, widget.scrollDirection);
+    }
+    controller.lastIndex = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, scrollKey,
+      controller, widget.reverse, widget.scrollDirection, controller._keyList);
 
   @override
   void dispose() {
-    _cancelController();
-    if (!widget.disabled) {
-      unregister(widget.index);
-    }
-    _controller = null;
-    _highlights.remove(this);
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(W oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index ||
-        oldWidget.key != widget.key ||
-        oldWidget.disabled != widget.disabled) {
-      if (!oldWidget.disabled) unregister(oldWidget.index);
-      if (!widget.disabled) register(widget.index);
-    }
-  }
-
-  void register(int index) {
-    widget.controller.tagMap[index] = this;
-  }
-
-  void unregister(int index) {
-    _cancelController();
-    _highlights.remove(this);
-    if (widget.controller.tagMap[index] == this) {
-      widget.controller.tagMap.remove(index);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final animation = _controller ?? kAlwaysDismissedAnimation;
-
-    final item = _HighlightTransition(
-        context: context,
-        highlight: animation,
-        background: widget.color,
-        highlightColor: widget.highlightColor,
-        child: widget.child!);
-    if (widget.onVisibilityChanged != null &&
-        widget.visibilityDetectorKey != null) {
-      return VisibilityDetector(
-          key: widget.visibilityDetectorKey!,
-          onVisibilityChanged: widget.onVisibilityChanged,
-          child: item);
-    }
-    return item;
-  }
-
-  DateTime? _startKey;
-
-  /// this function can be called multiple times. every call will reset the highlight style.
-  Future highlight(
-      {bool cancelExisting = true,
-      Duration highlightDuration = _kHighlightDuration,
-      bool animated = true}) async {
-    if (!mounted) return null;
-
-    if (cancelExisting) {
-      _cancelAllHighlights(this);
-    }
-
-    if (_highlights.containsKey(this)) {
-      assert(_controller != null);
-      _controller!.stop();
-    }
-
-    if (_controller == null) {
-      _controller = AnimationController(vsync: this);
-      _highlights[this] = _controller;
-    }
-
-    final startKey0 = _startKey = DateTime.now();
-    const animationShow = 1.0;
-    setState(() {});
-    if (animated) {
-      await _catchAnimationCancel(_controller!
-          .animateTo(animationShow, duration: _kScrollAnimationDuration));
-    } else {
-      _controller!.value = animationShow;
-    }
-    await Future.delayed(highlightDuration);
-
-    if (startKey0 == _startKey) {
-      if (mounted) {
-        setState(() {});
-        const animationHide = 0.0;
-        if (animated) {
-          await _catchAnimationCancel(_controller!
-              .animateTo(animationHide, duration: _kScrollAnimationDuration));
-        } else {
-          _controller!.value = animationHide;
-        }
-      }
-
-      if (startKey0 == _startKey) {
-        _controller = null;
-        _highlights.remove(this);
-      }
-    }
-    return null;
-  }
-
-  void _cancelController({bool reset = true}) {
-    if (_controller != null) {
-      if (_controller!.isAnimating) _controller!.stop();
-      if (reset && _controller!.value != 0.0) _controller!.value = 0.0;
-    }
+    if (widget.disposeController) controller.dispose();
   }
 }
 
-class _HighlightTransition extends StatelessWidget {
-  const _HighlightTransition(
-      {required this.context,
-      required this.highlight,
-      required this.child,
-      this.background,
-      this.highlightColor});
-
-  final BuildContext context;
-  final Animation<double> highlight;
-  final Widget child;
-  final Color? background;
-  final Color? highlightColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBoxTransition(
-        decoration: DecorationTween(
-                begin: background != null
-                    ? BoxDecoration(color: background)
-                    : const BoxDecoration(),
-                end: background != null
-                    ? BoxDecoration(color: background)
-                    : BoxDecoration(color: highlightColor))
-            .animate(highlight),
-        child: child);
-  }
-}
-
-/// used to invoke async functions in order
-Future<T> _co<T>(key, FutureOr<T> Function() action) async {
-  for (;;) {
-    final c = _locks[key];
-    if (c == null) break;
-    try {
-      await c.future;
-    } catch (_) {} //ignore error (so it will continue)
+extension _ExtensionBuildContext on BuildContext {
+  /// Get the Rect of the widget on the screen.Widgets must be rendered completely.
+  /// 获取widget在屏幕上的Rect,widget必须渲染完成
+  Rect? getWidgetRectLocalToGlobal(
+      {Offset point = Offset.zero, RenderObject? ancestor}) {
+    final RenderBox? box = getRenderBox;
+    return box == null
+        ? null
+        : box.localToGlobal(point, ancestor: ancestor) & box.size;
   }
 
-  final c = _locks[key] = Completer<T>();
-  void then(T result) {
-    final c2 = _locks.remove(key);
-    c.complete(result);
-
-    assert(identical(c, c2));
+  RenderBox? get getRenderBox {
+    final RenderObject? renderObject = findRenderObject();
+    RenderBox? box;
+    if (renderObject != null) box = renderObject as RenderBox;
+    return box;
   }
-
-  void catchError(ex, StackTrace st) {
-    final c2 = _locks.remove(key);
-    c.completeError(ex, st);
-
-    assert(identical(c, c2));
-  }
-
-  try {
-    final result = action();
-    if (result is Future<T>) {
-      result.then(then).catchError(catchError);
-    } else {
-      then(result);
-    }
-  } catch (ex, st) {
-    catchError(ex, st);
-  }
-
-  return c.future;
-}
-
-final _locks = HashMap<dynamic, Completer>();
-
-/// skip the TickerCanceled exception
-Future _catchAnimationCancel(TickerFuture future) async {
-  return future.orCancel.catchError((_) async {
-    return null;
-  }, test: (ex) => ex is TickerCanceled);
 }
