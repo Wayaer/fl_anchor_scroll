@@ -41,7 +41,7 @@ abstract class FlScrollController implements ScrollController {
   bool get isAnchorScrolling;
 
   /// all layout out states will be put into this map
-  Map<int, AnchorScrollTagState> get tagMap;
+  Map<int, FlAnchorScrollTagState> get tagMap;
 
   /// used to chaining parent scroll controller
   set parentController(ScrollController parentController);
@@ -125,7 +125,8 @@ class FlPageAnchorScrollController extends PageController
 mixin _FlAnchorScrollControllerMixin on ScrollController
     implements FlScrollController {
   @override
-  final Map<int, AnchorScrollTagState> tagMap = <int, AnchorScrollTagState>{};
+  final Map<int, FlAnchorScrollTagState> tagMap =
+      <int, FlAnchorScrollTagState>{};
 
   @override
   double? get suggestedRowHeight;
@@ -451,7 +452,7 @@ mixin _FlAnchorScrollControllerMixin on ScrollController
   }
 }
 
-void _cancelAllHighlights([AnchorScrollTagState? state]) {
+void _cancelAllHighlights([FlAnchorScrollTagState? state]) {
   for (final tag in _highlights.keys) {
     tag._cancelController(reset: tag != state);
   }
@@ -462,8 +463,8 @@ void _cancelAllHighlights([AnchorScrollTagState? state]) {
 typedef TagHighlightBuilder = Widget Function(
     BuildContext context, Animation<double> highlight);
 
-class AnchorScrollTag extends StatefulWidget {
-  const AnchorScrollTag({
+class FlAnchorScrollTag extends StatefulWidget {
+  const FlAnchorScrollTag({
     required super.key,
     required this.controller,
     required this.index,
@@ -488,14 +489,14 @@ class AnchorScrollTag extends StatefulWidget {
   final Key? visibilityDetectorKey;
 
   @override
-  State<AnchorScrollTag> createState() =>
-      AnchorScrollTagState<AnchorScrollTag>();
+  State<FlAnchorScrollTag> createState() =>
+      FlAnchorScrollTagState<FlAnchorScrollTag>();
 }
 
-Map<AnchorScrollTagState, AnimationController?> _highlights =
-    <AnchorScrollTagState, AnimationController?>{};
+Map<FlAnchorScrollTagState, AnimationController?> _highlights =
+    <FlAnchorScrollTagState, AnimationController?>{};
 
-class AnchorScrollTagState<W extends AnchorScrollTag> extends State<W>
+class FlAnchorScrollTagState<W extends FlAnchorScrollTag> extends State<W>
     with TickerProviderStateMixin {
   AnimationController? _controller;
 

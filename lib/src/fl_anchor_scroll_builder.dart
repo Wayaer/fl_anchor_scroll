@@ -147,7 +147,7 @@ class _AnchorScrollBuilderState extends State<FlAnchorScrollBuilder> {
       },
       child: widget.builder(context, (int index, Widget itemBuilder) {
         final key = ValueKey(index);
-        return AnchorScrollTag(
+        return FlAnchorScrollTag(
             key: key,
             controller: widget.controller,
             index: index,
